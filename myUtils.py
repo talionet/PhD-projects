@@ -17,6 +17,7 @@ import scipy.stats as sstats
 class newObject(object):
     pass
 
+print('hello world')
 
 # Features functions:
 class dataUtils:
