@@ -576,21 +576,27 @@ def main(isLoadData=0,isCutData=0, isClusterData=1, isQuantizeData=0, PieceLengt
             saveName=os.path.join(DataPath,'DATA_'+str(PieceLength))
             segmentedData=dataUtils.readcsvDF(saveName+'.csv')
         print('quantizing data...') 
-        quantizedDF=dataUtils.quantizeData(segmentedData,n_quants=4)#TODO - make the quantized data in LOO on cutted data!
+        quantizedDF=dataUtils.quantizeData(segmentedData,n_quants=4)
         print('saving to csv..')
         quantizedDF.to_csv(os.path.join(DataPath,'DATA_quantized'+str(PieceLength)+'.csv'))
         print('saved!')
         
     if isClusterData:
-        if not(isCutData):
-            saveName=os.path.join(DataPath,'DATA_'+str(PieceLength))
-            segmentedData=dataUtils.readcsvDF(saveName+'.csv')
-        clusteredTrainData, clusteredTestData, clustersCenters, MethodDetails  = dataUtils.clusterData(segmentedData,n_clusters=7)
-        print('saving to csv..')
-        clusteredTrainData.to_excel(os.path.join(DataPath,'DATA_clusteredTrain'+str(PieceLength)+'.xls'))
-        clusteredTestData.to_excel(os.path.join(DataPath,'DATA_clusteredTest'+str(PieceLength)+'.xls'))
-        clusteredCenters.to_excel(os.path.join(DataPath,'DATA_clusteredTCenters' +str(PieceLength)+'.xls'))
-        print('saved!')
+        clusteredDataPath=os.path.join(DataPath,'DATAclustered_'+str(PieceLength)+'.csv')
+        try:
+            print('Loading clustered data from '+clusteredDataPath+'...')
+            clusteredData=DF.from_csv(clusteredDataPath,index_col=[0,1]) #continue here, make sure loaded right
+            print('succesfully loaded !')
+        except IOError: #if file does'nt exist creat it from cutted data and save
+            print('not found - creating cluster data frame...')
+            if not(isCutData):
+                saveName=os.path.join(DataPath,'DATA_'+str(PieceLength))
+                segmentedData=dataUtils.readcsvDF(saveName+'.csv')
+            clusteredData, clustersCenters, MethodDetails  = dataUtils.clusterData(segmentedData,n_clusters=7)
+            print('saving to csv..')
+            clusteredData.to_csv(os.path.join(DataPath,'DATAclustered_'+str(PieceLength)+'.csv'))
+            clusteredCenters.to_csv(os.path.join(DataPath,'DATAclusteredTCenters' +str(PieceLength)+'.csv'))
+            print('saved!')
         #dataObject.rawDF.to_csv("C:\\Users\\taliat01\\Desktop\\TALIA\\Code-Python\\Results\\LearningData\\DATAraw500.csv")
         #dataObject.quantizedDF.to_csv("C:\\Users\\taliat01\\Desktop\\TALIA\\Code-Python\\Results\\LearningData\\DATAquantized500.csv")
 
@@ -612,7 +618,7 @@ def main(isLoadData=0,isCutData=0, isClusterData=1, isQuantizeData=0, PieceLengt
 
     ## Calc / Load FEATURES for learning 
     FeaturesPath=resultsPath + '\\LearningFeatures\\' + FeatureMethod + '_Features_'+str(PieceLength)
-    Features=FeatureObject(dataObject,FeaturesPath,PieceLength)
+   
     if isLoadFeatures:
         print('loading FEATURES from '+ FeaturesPath + '...\n')  
         Features.FeaturesDF=read_csv(FeaturesPath+'DF.csv', index_col=[0,1], skipinitialspace=True, header=[0,1])
@@ -621,7 +627,7 @@ def main(isLoadData=0,isCutData=0, isClusterData=1, isQuantizeData=0, PieceLengt
         if not FeatureMethod:
             FeatureMethod = raw_input("Enter Feature Type ('Quantization', Moments') as list: ")
         print("Calculating subjects' " + FeatureMethod + " features ...")            
-        Features.getFeatures(FeatureMethod,cross_validationMethod)
+        Features.getFeatures(FeatureMethod)
     if isGetFeaturesNaNs:
         Features.FeaturesDF=featuresUtils.getMissingFeatures(Features)
         Features.FeaturesDF.to_csv(Features.FeaturesPath +'DF.csv')
@@ -702,7 +708,8 @@ def main(isLoadData=0,isCutData=0, isClusterData=1, isQuantizeData=0, PieceLengt
                         for n_features in NFeatureList:
                             print('****************************new_loop*******************************')
                             print('Model = ' + model +'\nLabelBy = ' + label +'\nDecomposition = '+ decomposition + 'FeatureSelection = ' + fs + '\nNum Of Features = ' + str(n_features))
-                            s=LearnObject(Features,Labels,Labels2)
+                            Details={'LabelBy':label,'stratifiedKFold':FeatureObject.details,'FeatureMethod':FeatureObject.method,'PieceLength':FeatureObject.details['PieceLength']}
+                            s=LearnObject(Features,Labels,Labels2,Details)
                             s.run(Model=model, DecompositionMethod=decomposition,decompositionLevel='FeatureType',n_components=30, FeatureSelection=fs, n_features=n_features, isPerm=0,isBetweenSubjects=True,isConcatTwoLabels=False,isSaveCsv=True, isSavePickle=False, isSaveFig=False,isSelectSubFeatures=isSelectSubFeatures,SubFeatures=S,is_cross_validation=is_cross_validation)
                             #s.run(Model=m,n_features=f,isPerm=0,isBetweenSubjects=True,FeatureSelection=fs,isSavePickle=0,isSaveCsv=1,isSaveFig=1)
                             LabelNameList=s.ResultsDF.columns #TODO - CHANGE THIS!
@@ -815,7 +822,7 @@ if __name__ == "__main__":
     if isImport:
         AllPartsData=pickle.load(open(RawDataPath+".pickle",'rb'))
     
-    SubjectsDetailsDF=pickle.load(open(RawDataPath+"Details.pickle",'rb'))
+    #SubjectsDetailsDF=pickle.load(open(RawDataPath+"Details.pickle",'rb'))
     #SubjectsDetailsDF2=pickle.load(open(RawDataPath+"Details2.pickle",'rb'))
     permfileDir='C:\\Users\\taliat01\\Desktop\\TALIA\\Code-Python\\Results\\svc_LOO_LabelByPANSS_FeaturesQuantization_FSdPrime_Kernellinear_PERMStest'
 #for p in range(250,950,150):

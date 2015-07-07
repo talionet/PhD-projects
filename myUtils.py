@@ -17,7 +17,6 @@ import scipy.stats as sstats
 class newObject(object):
     pass
 
-print('hello world')
 
 # Features functions:
 class dataUtils:
@@ -27,14 +26,14 @@ class dataUtils:
     def readcsvDF(filename,col_index=['featureType','fs-signal'], row_index=['subject','Piece_ind']):
         """reads csv file with multiIndex both in columns and in rows"""
         print('loading csv data from ' +filename + '...')
-        dataDF=DF.from_csv(filename)
+        dataDF=DF.from_csv(filename+'.csv')
         dataDF.index=MultiIndex.from_arrays([dataDF.index,dataDF['Piece_ind']],names=row_index)
         dataDF=dataDF.drop('Piece_ind',axis=1)
         print('data loaded')
         return dataDF
                     
     @staticmethod
-    def quantizeData(rawData,n_quants=4,QuantizationMethod='random',cross_validationMethod='LOO'):
+    def quantizeData(rawData,n_quants=4,QuantizationMethod='random'):
         print('Quantazing data..')
         quantizedDF=DF(index=rawData.index)
         MethodDetails={'NumOfQuants':n_quants,'QuantizationMethod':QuantizationMethod}
@@ -46,33 +45,14 @@ class dataUtils:
         return qunatizedDF, MethodDetails
     
     @staticmethod
-    def clusterData(rawData, n_clusters=7, cross_validationMethod='LOO'):
+    def clusterData(rawData, n_clusters=7):
         MethodDetails={'NumOfclusters':n_clusters,'ClusteringMethod':'kmeans'}
         kmeans=KMeans(n_clusters=n_clusters)
-        clusteredData=DF(index=rawData.index)
-        subjectsList=rawData.index.levels[0]
-        cv, _ = learningUtils.setCrossValidation(cross_validationMethod,len(subjectsList),0,0)
-        cv_range=range(len(cv))
-        cv_ind=0
-        clusteredTrainData=Panel(items=subjectsList)
-        clusteredTestData=Panel(items=subjectsList)
-        clustersCenters=Panel(items=subjectsList)
-        for train, test in cv:
-            trainSubjects=subjectsList[train]
-            testSubjects=subjectsList[test]
-            trainRawData=rawData.T[trainSubjects].T
-            testRawData=rawData.T[testSubjects].T
-            subject_ind=testSubjects.values[0]
-            print('clustering '+ subject_ind)
-            try:
-                kmeans.fit_predict(trainRawData)#make sure this works fine with multiindex
-                clustersCenters[subject_ind]=DF(kmeans.cluster_centers_,index=range(n_clusters),columns=rawData.columns)
-                clusteredTrainData[subject_ind]=DF(kmeans.labels_,index=trainRawData.index)
-                clusteredTestData[subject_ind]=DF(kmeans.predict(testRawData),index=testRawData.index)
-            except NameError:
-                print(subject_ind + ' Not found in raw data!')
-                pass
-        return clusteredTrainData, clusteredTestData, clustersCenters, MethodDetails     
+        rawData=rawData.drop('time',axis=1)
+        kmeans.fit_predict(rawData.T)
+        clusteredDF=DF(kmeans.labels_,index=rawData.T.index)
+        clusteredCenters=DF(kmeans.cluster_centers_,columns=rawData.index)
+        return clusteredDF, clustersCenters, MethodDetails     
     
     @staticmethod    
     def cutData(rawData, PieceLength):  
@@ -177,30 +157,32 @@ class featuresUtils:
             return ExpressionRatio,ExpressionLevel,ExpressionLength,ChangeRatio,FastChangeRatio
     
     @staticmethod
-    def calckMeansClusterFeatures(subjectClusteredData,num_of_clusters):
+    def calckMeansClusterFeatures(subjectClusteredData,num_of_clusters,isSegmented=1):
         clusterCountsIndex=[str(c)+'_counts' for c in range(n_clusters)]
         clusterLengthIndex=[str(c)+'_length' for c in range(n_clusters)]
         clusterNumIndex=[str(c)+'_num' for c in range(n_clusters)]
         clustersScores=clusterCountsIndex+clusterLengthIndex+clusterNumIndex+['NumOfClusters','ClusterMeanLength','ClusterChangeRatio']
-        subjectClusterFeatures=DF(indext=subjectClusteredData,columns=clustersScores)#TODO, make sure it calcs features for all pieces!
-        subjectClusters=subjectClusteredData[0] #make it a series
-        value_counts=subjectClusters.value_counts()
-        for c in value_counts.index:
-            subjectClusterFeatures[str(c)+'_counts']=value_counts.loc[c]
-            [Blocks,_]=featuresUtils.countBlocks(DF(subjectClusters==c))
-            subjectClusterFeatures[str(c)+'_length']=Blocks['meanBlockLength'][0]
-            subjectClusterFeatures[str(c)+'_num']=Blocks['NumOfBlocks'][0]
-            subjectClusterFeatures['NumOfClusters']=len(value_counts)
-            #ClustersTransitionMatrix=featureUtils.getTransMatrix(subjectClusters,n_clusters)   
-            TransitionMatrix=featuresUtils.getTransMatrix(DF(subjectClusters),n_clusters)[0]
+
+        Segments=subjectClusteredData.index.unique()
+        subjectClusterFeatures=DF(index=Segments,columns=clustersScores)#TODO, make sure it calcs features for all pieces!
+        for segment in Segments:
+            segmentData=subjectClusteredData[0].loc[segment]
+            value_counts=segmentData.value_counts()
+            for c in value_counts.index:
+                subjectClusterFeatures[str(c)+'_counts'].loc[segment]=value_counts.loc[c]
+                [Blocks,_]=featuresUtils.countBlocks(DF(segmentData==c))
+                subjectClusterFeatures[str(c)+'_length'].loc[segment]=Blocks['meanBlockLength'][0]
+                subjectClusterFeatures[str(c)+'_num'].loc[segment]=Blocks['NumOfBlocks'][0]
+                subjectClusterFeatures['NumOfClusters'].loc[segment]=len(value_counts)
+                #ClustersTransitionMatrix=featureUtils.getTransMatrix(subjectClusters,n_clusters)   
+            TransitionMatrix=featuresUtils.getTransMatrix(DF(segmentData),n_clusters)[0]
             N=sum(sum(TransitionMatrix))
             ChangeFrames=N-(sum(np.diagonal(TransitionMatrix)))
             ChangeRatio=ChangeFrames/(N-TransitionMatrix[0,0])
-            subjectClusterFeatures['ClusterMeanLength']=subjectClusterFeatures[clusterLengthIndex].loc[subject].mean()
-            subjectClusterFeatures['ClusterChangeRatio']=ChangeRatio
-
-        subjectFeaturesDF=subjectClusterFeatures.fillna(0.).T
-        return subjectFeaturesDF
+            subjectClusterFeatures['ClusterMeanLength'].loc[segment]=subjectClusterFeatures[clusterLengthIndex].loc[segment].mean()
+            subjectClusterFeatures['ClusterChangeRatio'].loc[segment]=ChangeRatio   
+            subjectFeaturesDF=subjectClusterFeatures.fillna(0.).T
+            return subjectFeaturesDF
 
     @staticmethod
     def initX(FeaturesDF,trainLabels_all,Labeling,is2=False):

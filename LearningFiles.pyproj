@@ -13,7 +13,7 @@
     <LaunchProvider>Standard Python launcher</LaunchProvider>
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>2.7</InterpreterVersion>
-    <Name>SVM</Name>
+    <Name>LearningFiles</Name>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'" />
   <PropertyGroup Condition="'$(Configuration)' == 'Release'" />
@@ -25,18 +25,13 @@
     <Compile Include="globalVars.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Main_AllLabels.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="DataAnalysis.py">
+    <Compile Include="LEARNER_AllLabels.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="myClasses.py" />
     <Compile Include="myUtils.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="PlotResults.py" />
-    <Compile Include="SummarizeResults.py" />
     <Compile Include="LEARNER.py" />
   </ItemGroup>
   <ItemGroup>

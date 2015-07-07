@@ -36,20 +36,7 @@ class DataObject:
         self.ispieceData=0
         self.MethodDetails={}
     
-#    def calcSmoothThresh(self,T=0.2):
-#        self.smoothed=DF(index=self.rawDF.index)
-#        self.MethodDetails['SmoothThresholding']={'T':T}
-#        
-#        def smooth(x,T=T):   
-#            sX= [max(0,abs(xi)-T) for xi in x.values]
-#            return sX
-#        for columns in self.rawDF:
-#            self.Smoothed[columns]=self.rawDF.apply(smooth)
-#            
-#            plt.plot(range(len(x)),[x,sX])
-#            plt.show()
-#            print('delete these')
-            
+
 
 
 """--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -75,32 +62,29 @@ class FeatureObject():
         self.isSave=1#int(raw_input('save features? '))
         self.FeaturesPath=FeaturesPath
         
-    def getFeatureDF(self,sData, func, featureName={}):
+    def getFeatureDF(sData, func, featureName={}):
         FeatureData=np.array(sData.apply(func))
         FeatureIndex=MultiIndex.from_product([featureName,self.varNames],names=['FeatureType','fs-signal'])
         FeatureDF=DF(FeatureData,index=FeatureIndex)
         return FeatureDF
         
     #calc specific features according to feature type:    
-    def getFeatures(self,FeatureMethod,cross_validationMethod):
+    def getFeatures(self,FeatureMethod,Data,n_quantas=4,n_clusters=7):
         if not FeatureMethod:
            FeatureMethod=raw_input('Choose feature method (Moments,Quantization) : ')        
         
         print('\nCalculating Features for each subject...')
         #init
         FeaturesArray=np.array([])
-        self.FeaturesDF=DF()        
-        self.method=FeatureMethod
+        FeaturesDF=DF()        
+        method=FeatureMethod
         #loob over subjects
         PieceSize=int(raw_input('Piece Size= (CHANGE THIS TO MANUAL IN myClasses 125) '))
-        for subject in self.SubjectsList:
+        SubjectList=list(set(Data.index.get_level_values('subject')))
+        for subject in SubjectsList:
             print(subject)
-            subjectData=self.data.rawDF.loc[subject] #raw subject data 
+            subjectData=Data.loc[subject] #raw subject data 
             fs_signal=subjectData.columns #continue here- make sure the features and labels are sink in different piece_ind.
-            #if isCuttedData
-                #piecesIndex=list(set(subjectData.index.get_level_values('Piece_ind')))
-                #piecesNames=piecesIndex
-            #else:
             numOfPieces=range(np.round(len(subjectData)/PieceSize))[:-1]
             piecesIndexDict={}
             piecesName={}
@@ -111,7 +95,7 @@ class FeatureObject():
             piecesIndex=list(piecesIndexDict.itervalues())
             piecesName=list(piecesName.itervalues())
             #
-            subjectPiecesIndex=MultiIndex.from_product([self.SubjectsList,piecesName],names=['subject','Piece_ind'])
+            subjectPiecesIndex=MultiIndex.from_product([SubjectsList,piecesName],names=['subject','Piece_ind'])
             #loob over pieces
             for piece in piecesIndexDict:
                 pieceRange=piecesIndexDict[piece] #change this to PieceName, if data is already cutted
@@ -120,67 +104,76 @@ class FeatureObject():
             #calc features
                 if  FeatureMethod=='Moments' :
                     FeatureTypeList=  ['M1','M2','Skew','Kurtosis']  
-                    M1=self.getFeatureDF(sData,np.mean,'m1')
-                    M2=self.getFeatureDF(sData,np.std,'m2')
-                    Skew=self.getFeatureDF(sData,sstats.skew,'Skew')
-                    Kurtosis=self.getFeatureDF(sData,sstats.kurtosis,'Kurtosis')
+                    M1=getFeatureDF(sData,np.mean,'m1')
+                    M2=getFeatureDF(sData,np.std,'m2')
+                    Skew=getFeatureDF(sData,sstats.skew,'Skew')
+                    Kurtosis=getFeatureDF(sData,sstats.kurtosis,'Kurtosis')
                     subjectFeatures=concat([M1,M2,Kurtosis,Skew])
                     
-                    if self.FeaturesDF.empty:
-                        self.FeaturesDF=DF(columns=subjectPiecesIndex, index=subjectFeatures.index)              
-                    self.FeaturesDF[subject,piece]=subjectFeatures  
+                    if FeaturesDF.empty:
+                        FeaturesDF=DF(columns=subjectPiecesIndex, index=subjectFeatures.index)              
+                    FeaturesDF[subject,piece]=subjectFeatures  
                 
                 
                 if  FeatureMethod=='Quantization':
-                    FeatureTypeList=['ExpressionRatio','ExpressionLevel','ExpressionLength','ChangeRatio','FastChangeRatio']
-                    #                if 'quantizedDF' in self.data: %TODO- fix this
-    #                    self.data.calcQuantize()
-                    k=self.data.MethodDetails['Quantize']['NumOfQuants']                
-                    qData=self.data.quantizedDF #TODO, make sure it is also divided to pieces
-                    sData=qData.loc[subject].loc[pieceRange] # subject data
-                    cols=qData.columns
+                    isQuantizedData=int(raw_input('is your data quantized?? '))
+                    if not(isQuantizedData):
+                        print('Data should be quantized in order to calculate Quantization features!!')
+                        break
+                    else:
+                        FeatureTypeList=['ExpressionRatio','ExpressionLevel','ExpressionLength','ChangeRatio','FastChangeRatio']
+                        #                if 'quantizedDF' in self.data: %TODO- fix this
+        #                    self.data.calcQuantize()
+                        k=n_quantas               
+                        quantizedData=Data #TODO, make sure it is also divided to pieces
+                        sData=quantizedData.loc[subject].loc[pieceRange] # subject data
+                        cols=quantizedData.columns
                     
                 
-                    #calc features using quantized vector:
-                    ExpressionRatio,ExpressionLevel,ExpressionLength,ChangeRatio,FastChangeRatio=featuresUtils.calcQuantizationFeatures(sData,k)
-                    FeaturesDict={'ExpressionRatio':ExpressionRatio,'ExpressionLevel':ExpressionLevel,'ExpressionLength':ExpressionLength,'ChangeRatio':ChangeRatio,'FastChangeRatio':FastChangeRatio}
-                    multInd=MultiIndex.from_product([FeatureTypeList,cols],names=['FeatureType','fs-signal'])
-                    subjectFeatures=DF(concat([ExpressionRatio,ExpressionLevel,ExpressionLength,ChangeRatio,FastChangeRatio]).values,index=multInd)
-                    if self.FeaturesDF.empty:
-                        self.FeaturesDF=DF(columns=sgetubjectPiecesIndex, index=subjectFeatures.index)              
-                    self.FeaturesDF[subject,piece]=subjectFeatures 
+                        #calc features using quantized vector:
+                        ExpressionRatio,ExpressionLevel,ExpressionLength,ChangeRatio,FastChangeRatio=featuresUtils.calcQuantizationFeatures(sData,k)
+                        FeaturesDict={'ExpressionRatio':ExpressionRatio,'ExpressionLevel':ExpressionLevel,'ExpressionLength':ExpressionLength,'ChangeRatio':ChangeRatio,'FastChangeRatio':FastChangeRatio}
+                        multInd=MultiIndex.from_product([FeatureTypeList,cols],names=['FeatureType','fs-signal'])
+                        subjectFeatures=DF(concat([ExpressionRatio,ExpressionLevel,ExpressionLength,ChangeRatio,FastChangeRatio]).values,index=multInd)
+                        if FeaturesDF.empty:
+                            FeaturesDF=DF(columns=sgetubjectPiecesIndex, index=subjectFeatures.index)              
+                        FeaturesDF[subject,piece]=subjectFeatures 
 
                 if FeatureMethod=='kMeansClustering':
                     n_clusters=7
+                    isClusteredData=int(raw_input('is your data clustered?? '))
+                    if not(isClusteredData):
+                        print('Data should be clustered in order to calculate clustering features!!')
+                        break
                     print('clustering data... num of clusters = '+str(n_clusters))
-                    rawDataAllSubjects=self.data.cuttedDF
-                    rawDataAllSubjectsButOne=rawDataAllSubjects.drop(subject)
-                    clusteredDataAllSubjectsButOne,kmeans,clusterCenters=self.data.getClusters(rawDataAllSubjects)
-                    subjectRawData=rawDataAllSubjects.loc[subject].loc[pieceRange]
-                    subjectClusteredData=kmeans.fit(subjectRawData) #fit k means from train data to test data.4
-                    sData=index=DF(subjectClusteredData,rawData.index)
-                    subjectFeatures=featuresUtils.calckMeansClusterFeatures(sData,n_clusters)
-                    if self.FeaturesDF.empty:
-                        self.FeaturesDF=DF(columns=subjectPiecesIndex, index=subjectFeatures.index)              
-                    self.FeaturesDF[subject,piece]=subjectFeatures 
+                    clusteredData=Data
+                    sData=clusteredData.loc[subject]
+                    subjectFeatures=featuresUtils.calckMeansClusterFeatures(sData,n_clusters) #TODO make sure it works for segmented Data
+                    if FeaturesDF.empty:
+                        FeaturesDF=DF(columns=subjectPiecesIndex, index=subjectFeatures.index)              
+                    FeaturesDF[subject,piece]=subjectFeatures 
+
         # PreProcessing over all features (normalizeation and dropna())
         GetNormRows=lambda x: (x-x.mean())/x.std()
-        self.FeaturesDF=self.FeaturesDF.apply(GetNormRows,axis=1) #normalize each feature over all subjects
-        self.FeaturesDF.fillna(0,inplace=True)#make sure there are no inappropriate Nans  #TODO - this should be removed, and get the same FeaturesDF as in 'getMissingFeatures'
+        ProcessedFeaturesDF=self.FeaturesDF.apply(GetNormRows,axis=1) #normalize each feature over all subjects
+        ProcessedFeaturesDF.fillna(0,inplace=True)#make sure there are no inappropriate Nans  #TODO - this should be removed, and get the same FeaturesDF as in 'getMissingFeatures'
         if  FeatureMethod=='Quantization':
-            self.FeaturesDF=featuresUtils.getMissingFeatures(self) #calc the real NaNs
+            ProcessedFeaturesDF=featuresUtils.getMissingFeatures(self) #calc the real NaNs
 
         # multIndex=MultiIndex.from_product([FeatureTypeList,fs_signal],names=['FeatureType','fs-signal'])
         # FeaturesArray=StandardScaler().fit_transform(FeaturesArray.T) #normalize each feature over all subjects.
         # FeaturesDF=DF(FeaturesArray.T,index=multIndex,columns=self.SubjectsList)
         #self.FeaturesDF.index.set_names(names=['FeatureType','fs-signal']) #TODO - make sure this works!
       
-        if self.isSave:          
+        if isSave:          
+            FaturesPath=raw_input('enter features Path: ')
             print('\nsaving to pickle...' )
-            pickle.dump(self,open(self.FeaturesPath +'.pickle','wb'))
+            FeaturesDF.to_pickle(open(FeaturesPath +'raw.pickle','wb'))
+            ProcessedFeaturesDF.to_pickle(open(FeaturesPath +'.pickle','wb'))
             print('saving to csv...' )
-            self.FeaturesDF.to_csv(self.FeaturesPath +'DF.csv')
-            print('All Features Data successfully saved to ' +self.FeaturesPath)
+            FeaturesDF.to_csv(self.FeaturesPath +'rawDF.csv')
+            ProcessedFeaturesDF.to_csv(self.FeaturesPath +'DF.csv')
+            print('All Features Data successfully saved to ' +FeaturesPath)
             
 
     

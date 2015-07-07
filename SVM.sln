@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.21005.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "SVM", "SVM.pyproj", "{8597EAC2-806B-4CB0-9F16-AF7ABD972D5F}"
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "LearningFiles", "LearningFiles.pyproj", "{8597EAC2-806B-4CB0-9F16-AF7ABD972D5F}"
+EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "PostAnalysis", "..\PythonApplication1\PostAnalysis.pyproj", "{7EE74BBD-BBA3-4188-9E6A-E3F6831312E3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,6 +15,8 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{8597EAC2-806B-4CB0-9F16-AF7ABD972D5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8597EAC2-806B-4CB0-9F16-AF7ABD972D5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7EE74BBD-BBA3-4188-9E6A-E3F6831312E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7EE74BBD-BBA3-4188-9E6A-E3F6831312E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
